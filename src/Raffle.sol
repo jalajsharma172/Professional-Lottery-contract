@@ -26,8 +26,12 @@
 //             Modifiers
 //             Functions
 
+// Ctl+ Move Down
+// Alt+Down
+// Ct
+// Ctl+ P IMP For Opening Library Files's
 /*
- * @title Raffle
+ * @title Lottery Contract
  * @author Jalaj Sharma
  * @notice This contract is a simple raffle contract that allows users to enter the raffle by sending 0.01 ether.
  *@dev This contract is a simple raffle contract that allows users to enter the raffle by sending 0.01 ether.
@@ -35,35 +39,65 @@
 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
-contract Raffle {
-    error Raffle__NotEnoughEthSent();
+import {IVRFCoordinatorV2Plus} from "@chainlink/contracts/src/v0.8/dev/interfaces/IVRFCoordinatorV2Plus.sol";
+import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/dev/vrf/libraries/VRFV2PlusClient.sol";
+import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/dev/vrf/VRFConsumerBaseV2Plus.sol";
 
-    uint256 private immutable i_entranceFee;
+contract Raffle is VRFConsumerBaseV2Plus {
+    error Raffle_NotEnoughEthSent();
+    error Zero_error();
+
     // @dev Duration of the lottery in seconds
+    uint16 private constant RequestConfirmations = 2;
+    uint32 private constant NUM_Words = 1;
+    uint256 private immutable i_entranceFee;
     uint256 private immutable i_interval;
+    bytes32 private immutable i_keyHash;
+    uint256 private immutable i_subscriptionId;
+    uint32 private immutable i_callbackGasLimit;
     address payable[] private s_players;
     uint256 private s_lastTimeStamp;
 
     event EnteredRaffle(address indexed player);
 
-    constructor(uint256 entranceFee, uint256 interval) {
+    constructor(
+        uint256 entranceFee,
+        uint256 interval,
+        address vrfCoordinator,
+        bytes32 gasLane,
+        uint256 subscriptionId,
+        uint32 callbackGasLimit
+    ) VRFConsumerBaseV2Plus(vrfCoordinator) {
         i_entranceFee = entranceFee;
         i_interval = interval;
-        s_lastTimeStamp = block.timestamp
+        s_lastTimeStamp = block.timestamp;
+        i_keyHash = gasLane;
+        i_subscriptionId = subscriptionId;
+        i_callbackGasLimit = callbackGasLimit;
     }
-    // 1. Get a random number[from Chainlink VRF]
-    // 2. Use the random number to pick a player
-    // 3. Automatically called
-    function pickWinner() external view {
+
+    function pickWinner() external  returns (uint256) {
         // check to see if enough time has passed
         if (block.timestamp - s_lastTimeStamp < i_interval) revert();
 
-        // requestId = COORDINATOR.requestRandomWords(
-        //     keyHash,
-        //     s_subscriptionId,
-        //     requestConfirmations,
-        //     callbackGasLimit,
-        //     numWords
-        // );
+        // check to see if there are any players
+        VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient
+            .RandomWordsRequest({
+                keyHash: i_keyHash,
+                subId: i_subscriptionId,
+                requestConfirmations: RequestConfirmations,
+                callbackGasLimit: i_callbackGasLimit,
+                numWords: NUM_Words,
+                extraArgs: VRFV2PlusClient._argsToBytes(
+                    VRFV2PlusClient.ExtraArgsV1({nativePayment:false})
+                )
+            });
+
+        uint256 requestId = s_vrfCoordinator.requestRandomWords(request);
     }
+
+    function fulfillRandomWords(
+        uint256 requestId,
+        uint256[] memory randomWords
+    ) internal override {}
 }
