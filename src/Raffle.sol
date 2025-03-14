@@ -85,16 +85,19 @@ contract Raffle is VRFConsumerBaseV2Plus {
     }
 
     function enterRaffle() external payable {
+        //Checks :
         if (msg.value < i_entranceFee) revert Raffle__NotEnoughEthSent();
         if (s_raffleState != RaffleState.OPEN) revert Raffle__RaffleNotOpen(); // If not open you don't enter.
-
+        //Effects :
         s_players.push(payable(msg.sender));
         emit EnteredRaffle(msg.sender);
     }
-
+    //Checks-Effects-Interactions (CEI) Pattern
     function pickWinner() external returns (uint256) {      
+        //Checks :
         if (block.timestamp - s_lastTimeStamp < i_interval) revert();  // check to see if enough time has passed
            s_raffleState = RaffleState.CALCULATING;  //Stop Entry for now
+        //Effects :
         // check to see if there are any players
         VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient
             .RandomWordsRequest({
@@ -116,16 +119,21 @@ contract Raffle is VRFConsumerBaseV2Plus {
     //     uint256 indexOfWinner = randomWords[0] % s_players.length;
     //     address payable winner = s_players[indexOfWinner];
     // }
+    
+    //Checks-Effects-Interactions (CEI) Pattern
     function fulfillRandomWords(
         uint256 requestId,
         uint256[] memory randomWords
     ) internal override {
+        //Checks
+        //Effect
         uint256 indexOfWinner = randomWords[0] % s_players.length;
         address payable winner = s_players[indexOfWinner];
         s_recentWinner = winner;//Save it
         s_players = new address payable[](0);
         s_raffleState = RaffleState.OPEN;
         s_lastTimeStamp = block.timestamp;       
+        //Interaction (External Contract Interaction)
         (bool success, ) = winner.call{value: address(this).balance}("");
         if (!success) {
             revert Raffle__TransferFailed();
