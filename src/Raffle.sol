@@ -40,7 +40,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 import {VRFV2PlusClient} from "@chainlink/contracts/src/v0.8/dev/vrf/libraries/VRFV2PlusClient.sol";
+//It Is Used To Get s_vrfCoordinator,fulfillRandomWords, rawFulfillRandomWords ,fulfillRandomWords[uint256 requestId, uint256[] memory randomWords]
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/dev/vrf/VRFConsumerBaseV2Plus.sol";
+// AutomationCompatibleInterface, which is required for Chainlink automation.
 import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 
 contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
@@ -73,8 +75,11 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         CALCULATING // 1
     }
     RaffleState private s_raffleState;
-    event EnteredRaffle(address indexed player);
     event PickedWinner(address winner);
+    event RequestedRaffleWinner(uint256 indexed requestId);
+    event RaffleEnter(address indexed player);
+    event WinnerPicked(address indexed player);
+
     // Check me if I am working
     /**
      * @dev Constructor for the Raffle contract
@@ -99,16 +104,16 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         i_keyHash = gasLane;
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
-        s_raffleState = RaffleState.OPEN; //Raffle Entery Starts
+        s_raffleState = RaffleState.OPEN;
     }
-
+    //Raffle Entery Starts
     function enterRaffle() external payable {
         //Checks :
         if (msg.value < i_entranceFee) revert Raffle__NotEnoughEthSent();
         if (s_raffleState != RaffleState.OPEN) revert Raffle__RaffleNotOpen(); // If not open you don't enter.
         //Effects :
         s_players.push(payable(msg.sender));
-        emit EnteredRaffle(msg.sender);
+        emit RaffleEnter(msg.sender);
         //Interactions :
     }
     /**   
@@ -116,10 +121,10 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     *@dev This is the function that the function that the chainlink node will call
     *to see if the lottery is ready to have winner picked.
     *the follwing should be true in order for upkeepneeded to be true :
-    *1. The time internal has passed between raffle runs.(>i_interval)
-    *2. The Lotter is opeen.
-    *3. the contract have eth.
-    *4. There are players registered.  
+        *1. The time internal has passed between raffle runs.(>i_interval)
+        *2. The Lotter is opeen.
+        *3. the contract have eth.
+        *4. There are players registered.  
 
     * 5. Implicitly, your subscription is funded with LINK.
     */
@@ -131,52 +136,66 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         bool hasPlayer = s_players.length > 0;
         bool hasBalance = address(this).balance > 0;
         upkeepNeeded = timeHashPassed && isOpen && hasBalance && hasPlayer;
-    
+
         return (upkeepNeeded, "0x0");
     }
-
-    //Checks-Effects-Interactions (CEI) Pattern
-    // 1. Get a random number .
-    // 2. Use the random number to pick a player .
-    // 3. Automatically called .
-    function performUpkeep(bytes calldata /*performData*/) external override {
+    //The contract autonomously picks a winner when specific conditions are met.
+    function performUpkeep(bytes calldata /*performData*/) external override { // Find's A Winner 
         //Checks :
         (bool upkeepNeeded, ) = this.checkUpkeep("");
         if (!upkeepNeeded) {
             revert Raffle__UpkeepNotNeeded(
                 address(this).balance,
                 s_players.length,
-                uint(s_raffleState)
+                uint(s_raffleState)//Current raffle state. 0/1
             );
         }
-        //Effects :
-        s_raffleState = RaffleState.CALCULATING;
-        VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient
+        //Effects : 
+        //The raffle is no longer open for entries.
+        s_raffleState = RaffleState.CALCULATING;// Changes the state to CALCULATING.
+            /** 
+            * @dev  This block constructs a random number request using Chainlink VRF (Verifiable Random Function).  
+            * @dev keyHash: i_keyHash → Identifies the VRF key for randomness.
+            * @dev subId: i_subscriptionId → Subscription ID that funds the request.
+            * @dev requestConfirmations: RequestConfirmations → Number of block confirmations before fulfillment (reduces manipulation risk).
+            * @dev callbackGasLimit: i_callbackGasLimit → Limits the gas used for the callback.
+            * @dev numWords: NUM_Words → Number of random words requested                             [Obly 1]                                  (1 in this case).
+            * @dev extraArgs → Encodes extra arguments. Here, it specifies that LINK payment is not in native tokens.
+           */
+
+        VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient // From VRFV2PlusClient.sol Created A Struct
             .RandomWordsRequest({
-                keyHash: i_keyHash,
+                keyHash: i_keyHash,     
                 subId: i_subscriptionId,
                 requestConfirmations: RequestConfirmations,
                 callbackGasLimit: i_callbackGasLimit,
                 numWords: NUM_Words,
-                extraArgs: VRFV2PlusClient._argsToBytes(
-                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
-                )
+                extraArgs: VRFV2PlusClient._argsToBytes( // Called  abi.encodeWithSelector(EXTRA_ARGS_V1_TAG, extraArgs);
+                        VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
+                    )
             });
-
+        //Requests a random number from Chainlink VRF.
+        //
         uint256 requestId = s_vrfCoordinator.requestRandomWords(request);
+        emit RequestedRaffleWinner(requestId);
     }
+
+    //Checks-Effects-Interactions (CEI) Pattern
+    // 1. Get a random number .
+    // 2. Use the random number to pick a player .
+    // 3. Automatically called .
     function fulfillRandomWords(
         uint256 requestId,
         uint256[] memory randomWords
     ) internal override {
         //Checks
         //Effect
-        uint256 indexOfWinner = randomWords[0] % s_players.length;
-        address payable winner = s_players[indexOfWinner];
+        uint256 indexOfWinner = randomWords[0] % s_players.length; // 1. Get a random number .
+        address payable winner = s_players[indexOfWinner]; // 2. Use the random number to pick a player .
         s_recentWinner = winner; //Save it
-        s_players = new address payable[](0);
+        s_players = new address payable[](0); //Delete Loser's
         s_raffleState = RaffleState.OPEN;
-        s_lastTimeStamp = block.timestamp;
+        s_lastTimeStamp = block.timestamp; // Update The Time For Checking For Next Interval
         emit PickedWinner(msg.sender);
 
         //Interaction (External Contract Interaction)
@@ -184,5 +203,12 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
         if (!success) {
             revert Raffle__TransferFailed();
         }
+        emit RequestedRaffleWinner(requestId);
+    }
+    function getRaffleState() external view returns (RaffleState) {
+        return s_raffleState;
+    }
+    function getPlayer(uint256 indexOfPlayer) external view returns (address) {
+        return s_players[indexOfPlayer];
     }
 }
