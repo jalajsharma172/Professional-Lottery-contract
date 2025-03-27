@@ -42,9 +42,9 @@ contract RaffleTest is Test{
         callbackGasLimit = helperConfig.callbackGasLimit;
         vm.deal(PLAYER,Starting_PLAYER_BALANCE);
     }
-    // function testRaffleInitializesInOpenState() public view { // Corrected spelling
-    //     assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
-    // }
+    function testRaffleInitializesInOpenState() public view { // Corrected spelling
+        assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
+    }
 
     function testRaffleRevertsWhenYouDontPayEnough() public {
         // Arrange
@@ -55,38 +55,38 @@ contract RaffleTest is Test{
         raffle.enterRaffle();
     }
 
-    // function testRaffleRecordsPlayersWhenTheyEnter() public {
-    //     // Arrange
-    //     vm.prank(PLAYER);
-    //     // Act
-    //     raffle.enterRaffle{value: entranceFee}();
-    //     // Assert
-    //     address playerRecorded = raffle.getPlayer(0);
-    //     assert(playerRecorded == PLAYER);
-    // }
+    function testRaffleRecordsPlayersWhenTheyEnter() public {
+        // Arrange
+        vm.prank(PLAYER);
+        // Act
+        raffle.enterRaffle{value: entranceFee}();
+        // Assert
+        address playerRecorded = raffle.getPlayer(0);
+        assert(playerRecorded == PLAYER);
+    }
 
-    // function test_EnterRaffle__EmittingEvents() public { // Corrected spelling
-    //     // Arrange
-    //     vm.prank(PLAYER);
-    //     // Act
-    //     vm.expectEmit(true, false, false, false, address(raffle));
-    //     emit RaffleEnter(PLAYER);
-    //     // Assert 
-    //     raffle.enterRaffle{value: entranceFee}();
-    // }
+    function test_EnterRaffle__EmittingEvents() public { // Corrected spelling
+        // Arrange
+        vm.prank(PLAYER);
+        // Act
+        vm.expectEmit(true, false, false, false, address(raffle));
+        emit RaffleEnter(PLAYER);
+        // Assert 
+        raffle.enterRaffle{value: entranceFee}();
+    }
 
-    // function testDontAllowPlayerToEnterWhileRaffleIsCalculating() public {
-    //     // Arrange
-    //     vm.prank(PLAYER);
-    //     raffle.enterRaffle{value: entranceFee}();
+    function testDontAllowPlayerToEnterWhileRaffleIsCalculating() public {
+        // Arrange
+        vm.prank(PLAYER);
+        raffle.enterRaffle{value: entranceFee}();
         
-    //     vm.warp(block.timestamp + interval + 1);
-    //     vm.roll(block.number + 1);
+        vm.warp(block.timestamp + interval + 1);
+        vm.roll(block.number + 1);
         
-    //     // Act
-    //     vm.expectRevert("Raffle is calculating"); // Assuming this is the revert message
-    //     raffle.enterRaffle{value: entranceFee}(); // Assert that player cannot enter
-    // }
+        // Act
+        vm.expectRevert("Raffle is calculating"); // Assuming this is the revert message
+        raffle.enterRaffle{value: entranceFee}(); // Assert that player cannot enter
+    }
 
    
 }

@@ -139,7 +139,17 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
 
         return (upkeepNeeded, "0x0");
     }
-    //The contract autonomously picks a winner when specific conditions are met.
+        //     How VRF processes your request
+        // After you submit your request, it is processed using the Request & Receive Data cycle. The VRF coordinator processes the request and determines the final charge to your subscription using the following steps:
+        // The VRF coordinator emits an event.
+        // The VRF service picks up the event and waits for the specified number of block confirmations to respond back to the VRF coordinator with the random values and a proof 
+        // (
+//     requestConfirmations
+        // ).
+        // The VRF coordinator verifies the proof onchain, then it calls back the consuming contract 
+//  fulfillRandomWords function.
+            //The contract autonomously picks a winner when specific conditions are met.
+
     function performUpkeep(bytes calldata /*performData*/) external override { // Find's A Winner 
         //Checks :
         (bool upkeepNeeded, ) = this.checkUpkeep("");
@@ -150,6 +160,7 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
                 uint(s_raffleState)//Current raffle state. 0/1
             );
         }
+
         //Effects : 
         //The raffle is no longer open for entries.
         s_raffleState = RaffleState.CALCULATING;// Changes the state to CALCULATING.
@@ -162,7 +173,6 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
             * @dev numWords: NUM_Words → Number of random words requested                             [Obly 1]                                  (1 in this case).
             * @dev extraArgs → Encodes extra arguments. Here, it specifies that LINK payment is not in native tokens.
            */
-
         VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient // From VRFV2PlusClient.sol Created A Struct
             .RandomWordsRequest({
                 keyHash: i_keyHash,     
@@ -184,6 +194,12 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {
     // 1. Get a random number .
     // 2. Use the random number to pick a player .
     // 3. Automatically called .
+    /*Your contract must implement the fulfillRandomWords function, 
+    which is the callback VRF function. 
+    Here, you add logic to handle the random values after they are returned to your contra  
+    https://docs.chain.link/vrf/v2/subscription
+    
+     */
     function fulfillRandomWords(
         uint256 requestId,
         uint256[] memory randomWords
